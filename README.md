@@ -3,6 +3,8 @@
 ![Swissroll](swissroll.png)
 The virtual update progressively unrolls a Swiss roll into a near-linear curve along the target (encoded by color), shown across training epochs.
 
+[Paper (Arxiv)](https://arxiv.org/abs/2605.06258)
+
 ## TL;DR
 
 Simple chain rule makes the weight Gram matrix the bridge between weight and feature evolution. 
