@@ -1,0 +1,1474 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Weight Gram Matrix Captures Sequential Feature Linearization</title>
+<meta name="description" content="Gradient descent updates weights, but the weight Gram matrix records how features want to move. Deep networks use it to straighten data toward the target, layer by layer. NeurIPS 2026.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="static/data/page_data.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f9f9f7;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --mid: #f0efec;
+  /* encoding: blue = weights / actual, orange = features / virtual */
+  --w: #2a78d6;
+  --f: #eb6834;
+  --w-ink: #1c5cab;
+  --f-ink: #b84a1c;
+  --neg: #2a78d6;
+  --pos: #e34948;
+  --l1: #86b6ef; --l2: #3987e5; --l3: #1c5cab; --l4: #0d366b;
+  --orig-pt: rgba(11,11,11,0.10);
+  --shadow: 0 1px 2px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.04);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --surface-2: #242422;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255,255,255,0.10);
+    --mid: #383835;
+    --w: #3987e5;
+    --f: #d95926;
+    --w-ink: #86b6ef;
+    --f-ink: #f08a5d;
+    --neg: #3987e5;
+    --pos: #e66767;
+    --l1: #184f95; --l2: #2a78d6; --l3: #6da7ec; --l4: #b7d3f6;
+    --orig-pt: rgba(255,255,255,0.10);
+    --shadow: none;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0d0d0d; --surface: #1a1a19; --surface-2: #242422; --ink: #f0efec; --ink-2: #c3c2b7;
+  --muted: #898781; --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --mid: #383835;
+  --w: #3987e5; --f: #d95926; --w-ink: #86b6ef; --f-ink: #f08a5d; --neg: #3987e5; --pos: #e66767;
+  --l1: #184f95; --l2: #2a78d6; --l3: #6da7ec; --l4: #b7d3f6; --orig-pt: rgba(255,255,255,0.10); --shadow: none;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 17px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  padding: 0 20px;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+a { color: var(--w-ink); text-underline-offset: 2px; }
+.wrap { max-width: 760px; margin: 0 auto; }
+.wide { max-width: 1040px; margin: 0 auto; }
+
+/* ---------- hero ---------- */
+header.hero { padding-block: 64px 24px; text-align: center; }
+.venue {
+  display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .04em;
+  color: var(--ink-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px 12px;
+  background: var(--surface);
+}
+h1 {
+  font-size: clamp(28px, 4.6vw, 44px); line-height: 1.15; letter-spacing: -0.02em;
+  margin: 18px auto 18px; max-width: 900px; font-weight: 700;
+}
+.authors { font-size: 17px; margin: 0; }
+.authors span { white-space: nowrap; margin: 0 8px; }
+.affil { font-size: 14px; color: var(--ink-2); margin: 6px 0 0; }
+.affil span { white-space: nowrap; margin: 0 8px; }
+.links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 24px 0 0; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 999px;
+  background: var(--ink); color: var(--bg); text-decoration: none; font-weight: 600; font-size: 15px;
+  border: 1px solid var(--ink);
+}
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--border); }
+.btn svg { width: 16px; height: 16px; }
+.tldr {
+  max-width: 720px; margin: 36px auto 0; text-align: left; font-size: 18px;
+  border-left: 3px solid var(--w); padding: 4px 0 4px 18px; color: var(--ink);
+}
+.tldr b { font-weight: 650; }
+
+/* ---------- sections ---------- */
+section { padding-block: 40px 8px; }
+.pillar-tag {
+  display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-2); margin-bottom: 6px;
+}
+.pillar-tag i { font-style: normal; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+h2 { font-size: clamp(24px, 3.4vw, 31px); line-height: 1.25; letter-spacing: -0.015em; margin: 0 0 14px; }
+h3 { font-size: 20px; line-height: 1.35; margin: 36px 0 8px; }
+p { margin: 0 0 14px; }
+.lead { font-size: 18.5px; color: var(--ink-2); }
+.muted { color: var(--ink-2); }
+.small { font-size: 14.5px; }
+hr.sep { border: 0; border-top: 1px solid var(--border); margin: 48px auto 0; max-width: 760px; }
+.katex-display { margin: 14px 0; overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+.fx { color: var(--f-ink); }
+.wx { color: var(--w-ink); }
+
+/* ---------- cards ---------- */
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px 22px; box-shadow: var(--shadow);
+}
+.result {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 20px 14px; margin: 18px 0; position: relative; box-shadow: var(--shadow);
+}
+.result .tag {
+  font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted);
+  display: block; margin-bottom: 4px;
+}
+.result .claim { font-size: 17.5px; font-weight: 600; line-height: 1.45; margin: 0 0 6px; }
+.result p:last-child { margin-bottom: 0; }
+details { margin-top: 8px; }
+details summary {
+  cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); list-style: none;
+  display: inline-flex; align-items: center; gap: 6px; user-select: none;
+}
+details summary::-webkit-details-marker { display: none; }
+details summary::before { content: "+"; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border); font-size: 13px; line-height: 1; }
+details[open] summary::before { content: "−"; }
+details .math { font-size: 15.5px; padding-top: 6px; color: var(--ink); }
+
+/* ---------- figures ---------- */
+figure { margin: 26px 0 30px; }
+figcaption { font-size: 14.5px; color: var(--ink-2); margin-top: 12px; line-height: 1.55; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 18px; box-shadow: var(--shadow);
+}
+.panel-title { font-size: 14px; font-weight: 650; margin: 0 0 2px; }
+.panel-sub { font-size: 13px; color: var(--ink-2); margin: 0 0 8px; }
+
+/* controls */
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 9px; padding: 2px; background: var(--surface-2); }
+.seg button {
+  border: 0; background: transparent; color: var(--ink-2); font: inherit; font-size: 13.5px; font-weight: 600;
+  padding: 5px 12px; border-radius: 7px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.ctrl {
+  border: 1px solid var(--border); background: var(--surface); color: var(--ink); font: inherit; font-size: 13.5px;
+  font-weight: 600; padding: 6px 12px; border-radius: 9px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.ctrl:hover { background: var(--surface-2); }
+.check { font-size: 13.5px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+input[type=range] { accent-color: var(--w); }
+button:focus-visible, input:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--w); outline-offset: 2px; }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); align-items: center; }
+.legend .sw { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+.legend .sw.dash { border-top-style: dashed; }
+.legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: -0.5px; }
+.legend .ring { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 2px solid; margin-right: 6px; vertical-align: -1px; }
+.legend .box { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1.5px; }
+
+/* charts */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.chart text { font-family: inherit; }
+.tick { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.axis-label { font-size: 11.5px; fill: var(--ink-2); }
+.tip {
+  position: absolute; pointer-events: none; z-index: 5; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; line-height: 1.45;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.tip .t { font-weight: 650; margin-bottom: 2px; }
+.tip .r { display: flex; align-items: center; gap: 6px; }
+.tip .r i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.tip .r b { font-weight: 600; margin-left: auto; padding-left: 12px; }
+
+/* ---------- player ---------- */
+.player { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+.stage { position: relative; }
+.stage canvas { width: 100%; aspect-ratio: 1 / 1; display: block; border-radius: 10px; background: var(--surface-2); }
+.stage .badge {
+  position: absolute; top: 10px; left: 12px; font-size: 13px; font-weight: 600; color: var(--ink-2);
+  background: color-mix(in srgb, var(--surface) 85%, transparent); padding: 3px 9px; border-radius: 7px; font-variant-numeric: tabular-nums;
+}
+.player-bar { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.player-bar input[type=range] { flex: 1; min-width: 0; }
+.play { width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--ink); color: var(--bg); cursor: pointer; display: grid; place-items: center; flex: none; }
+.play svg { width: 14px; height: 14px; }
+.side { display: flex; flex-direction: column; gap: 14px; }
+.side .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.stat { display: flex; align-items: baseline; gap: 10px; }
+.stat .v { font-size: 34px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.stat .k { font-size: 13.5px; color: var(--ink-2); }
+.colorbar { height: 8px; border-radius: 4px; width: 120px; display: inline-block; vertical-align: middle; margin: 0 6px; }
+@media (max-width: 760px) { .player { grid-template-columns: 1fr; } }
+
+/* ---------- feature learning equation ---------- */
+.fle { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px 14px; align-items: center; margin: 22px 0 6px; }
+.fle .mini { text-align: center; padding: 12px 10px; }
+.fle .mini .lbl { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.fle .plus { font-size: 22px; color: var(--muted); }
+.fle .big { grid-column: 1 / -1; text-align: center; padding: 16px 12px 10px; border-width: 1.5px; }
+.fle .big .lbl { font-size: 12.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+.fle .arrow { grid-column: 1 / -1; text-align: center; color: var(--muted); font-size: 20px; line-height: 1; }
+.fle > * { min-width: 0; }
+@media (max-width: 600px) { .fle { grid-template-columns: minmax(0, 1fr); } .fle .plus { display: none; } .fle .big .katex { font-size: 0.95em; } }
+
+/* grids */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.four { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 860px) { .four { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .two { grid-template-columns: 1fr; } .three { grid-template-columns: 1fr; } }
+@media (max-width: 460px) { .four { grid-template-columns: 1fr; } }
+.fig-head { display: flex; justify-content: space-between; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin-bottom: 12px; }
+
+/* prop widgets */
+.readout { font-size: 13px; color: var(--ink-2); font-variant-numeric: tabular-nums; margin-top: 6px; }
+.readout b { color: var(--ink); }
+
+/* prop 5 */
+.p5 { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 22px; align-items: start; }
+.p5 canvas { width: 100%; aspect-ratio: 1 / 1; display: block; border-radius: 6px; image-rendering: pixelated; }
+.p5-sum { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 10px; }
+.p5-sum .v { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.p5-sum .k { font-size: 12.5px; color: var(--ink-2); }
+@media (max-width: 680px) { .p5 { grid-template-columns: 1fr; } }
+
+/* phenomena */
+.cards2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.cards2 h3 { margin-top: 0; font-size: 18.5px; }
+@media (max-width: 760px) { .cards2 { grid-template-columns: 1fr; } }
+.ncviz { display: block; width: 100%; max-width: 280px; margin: 6px auto 10px; }
+.vae { background: #fff; border-radius: 8px; padding: 6px; margin: 6px 0 10px; }
+
+/* bibtex */
+pre.bib {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px;
+  font: 13.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-x: auto; margin: 0;
+}
+.bibwrap { position: relative; }
+.bibwrap .ctrl { position: absolute; top: 10px; right: 10px; }
+footer { padding-block: 48px 64px; text-align: center; font-size: 13.5px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header class="hero wrap" style="max-width:960px">
+  <span class="venue">NeurIPS 2026</span>
+  <h1>The Weight Gram Matrix Captures Sequential Feature Linearization in Deep Networks</h1>
+  <p class="authors">
+    <span>Taehun Cha<sup>1</sup></span>
+    <span>Daniel Beaglehole<sup>2</sup></span>
+    <span>Adityanarayanan Radhakrishnan<sup>3</sup></span>
+    <span>Donghun Lee<sup>1</sup></span>
+  </p>
+  <p class="affil">
+    <span><sup>1</sup>Korea University</span>
+    <span><sup>2</sup>UC San Diego</span>
+    <span><sup>3</sup>MIT &amp; Broad Institute</span>
+  </p>
+  <div class="links">
+    <a class="btn" href="https://arxiv.org/abs/2605.06258">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13M6 8.5h5M6 11h5"/></svg>Paper
+    </a>
+    <a class="btn ghost" href="https://github.com/cth127/GramLin">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>Code
+    </a>
+    <a class="btn ghost" href="#bibtex">BibTeX</a>
+  </div>
+  <p class="tldr">
+    <b>TL;DR</b> Gradient descent updates <span class="wx"><b>weights</b></span>, but the weight Gram matrix \(W^\top W\) records how the <span class="fx"><b>features</b></span> would like to move.
+    Following that motion shows deep networks straightening their data toward the target, one layer at a time.
+  </p>
+</header>
+
+<!-- ============================================================ 1. thought experiment -->
+<section class="wrap" id="virtual">
+  <h2>What if we moved the features instead?</h2>
+  <p>
+    Training changes weights. Now imagine a side experiment. Take an input \(x\), and at every training step
+    nudge a <em>copy</em> of it along the loss gradient, in the direction the loss would like the input to move:
+  </p>
+  \[ \tilde x_{t+1} = \tilde x_t - \gamma\, \nabla_{x} L_t, \qquad \tilde x_0 = x. \]
+  <p>
+    We call \(\tilde x_t\) the <b>virtual update</b>. It never feeds back into training.
+    It is just a record of where gradient descent is pushing the features.
+    Below, a small MLP learns to predict each point's position along a Swiss roll (shown as color).
+    Press play and watch the record.
+  </p>
+</section>
+
+<div class="wide">
+<figure>
+  <div class="panel">
+    <div class="player">
+      <div>
+        <div class="stage">
+          <canvas id="vu-canvas" aria-label="Animated scatter plot of the virtual update"></canvas>
+          <span class="badge" id="vu-badge">epoch 0</span>
+        </div>
+        <div class="player-bar">
+          <button class="play" id="vu-play" aria-label="Play">
+            <svg id="vu-play-icon" viewBox="0 0 14 14" fill="currentColor"><path d="M3 1.5v11l9-5.5z"/></svg>
+          </button>
+          <input type="range" id="vu-slider" min="0" max="100" step="1" value="0" aria-label="Training epoch">
+        </div>
+      </div>
+      <div class="side">
+        <div class="row">
+          <div class="seg" role="group" aria-label="Dataset">
+            <button data-ds="swissroll" aria-pressed="true">Swiss roll</button>
+            <button data-ds="circles" aria-pressed="false">Two circles</button>
+          </div>
+          <label class="check"><input type="checkbox" id="vu-orig" checked> show original \(X\)</label>
+        </div>
+        <div class="legend" id="vu-legend"></div>
+        <div>
+          <div class="stat"><span class="v" id="vu-tl">0.00</span><span class="k">Target Linearity of \(\tilde X_t\)<br>(R² of linear regression \(\tilde X_t \to y\))</span></div>
+          <div class="chart" id="vu-tl-chart"></div>
+        </div>
+        <div>
+          <div class="panel-title">Training loss</div>
+          <div class="chart" id="vu-loss-chart"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <figcaption>
+    <b>The virtual update linearizes the data.</b> Gray: original inputs \(X\). Color: virtually updated inputs \(\tilde X_t\).
+    On the Swiss roll, the spiral unrolls into a curve ordered by the target, and a plain linear regression from \(\tilde X_t\) to \(y\) goes from R² ≈ 0.07 to ≈ 1.00 over 100 epochs.
+    On two circles, the inner class is pulled out of the ring and the two classes end up on opposite sides (R² ≈ 0 → 0.95).
+    Swiss roll: full-batch GD with learning rate 0.2 and display step size \(\gamma = 700\) (setup as in Appendix B.1, trained longer and with a larger learning rate). Coordinates are min-max rescaled each frame for display; the dynamics are not.
+  </figcaption>
+</figure>
+</div>
+
+<section class="wrap" style="padding-top:0">
+  <p>
+    The animation raises two questions, and the rest of this page answers them in order.
+    <b>First</b>, gradient descent only touches weights, so does it really carry this feature-space motion?
+    <b>Second</b>, where does the motion lead?
+  </p>
+</section>
+
+<hr class="sep">
+
+<!-- ============================================================ 2. Pillar A -->
+<section class="wrap" id="pillar-a">
+  <span class="pillar-tag"><i style="background:var(--w)"></i>Pillar A · A feature-centric view</span>
+  <h2>One line of chain rule connects weights to features</h2>
+  <p>
+    Most theories of training dynamics are <em>weight-centric</em>: they ask how far the weights move, as in NTK or mean-field analyses.
+    We ask instead how the <em>features</em> move. The bridge between the two views takes one line.
+    For any layer \(z = Wh\) and any scalar function \(f(z)\), the chain rule gives two gradients:
+  </p>
+
+  <div class="fle">
+    <div class="card mini">
+      <div class="lbl">Feature gradient</div>
+      \[ \nabla_{h} f = W^\top \nabla_{z} f \]
+    </div>
+    <div class="plus">&amp;</div>
+    <div class="card mini">
+      <div class="lbl">Weight gradient</div>
+      \[ \nabla_{W} f = \nabla_{z} f\; h^\top \]
+    </div>
+    <div class="arrow">↓</div>
+    <div class="card big">
+      <div class="lbl">The Feature Learning Equation</div>
+      \[ \underbrace{\htmlClass{fx}{\nabla_{h} f \cdot h^\top}}_{\text{how features want to move}} \;=\; \underbrace{\htmlClass{wx}{W^\top \nabla_{W} f}}_{\text{how weights actually move}} \]
+    </div>
+  </div>
+  <p class="muted small" style="text-align:center">An exact identity, with no approximation. The two sides meet through \(W^\top\).</p>
+
+  <h3>The Gram matrix is where feature gradients get written</h3>
+  <p>
+    Apply one gradient-descent step to \(W\), and look at the Gram matrix \(W^\top W\) rather than at \(W\) itself.
+    The Feature Learning Equation shows up inside the expansion:
+  </p>
+  \[
+  \begin{aligned}
+  (W - \gamma \nabla_W L)^\top (W - \gamma \nabla_W L)
+  &= W^\top W - \gamma\big(\htmlClass{wx}{W^\top \nabla_W L} + \nabla_W L^\top W\big) + O(\gamma^2) \\
+  &= W^\top W - \gamma\big(\htmlClass{fx}{\nabla_h L\, h^\top} + h\, \nabla_h L^\top\big) + O(\gamma^2).
+  \end{aligned}
+  \]
+  <p>
+    The right-hand side contains no weight gradients, only <span class="fx">feature gradients</span>.
+    It is also exactly how the covariance \(hh^\top\) changes when \(h\) takes one virtual step \(h \to h - \gamma \nabla_h L\).
+  </p>
+
+  <div class="result">
+    <span class="tag">Theorem 1</span>
+    <p class="claim">The weight Gram matrix learns the <span class="fx">Virtual Covariance</span>.</p>
+    <p>Every gradient step shifts \(W^\top W\) by the same amount that the covariance of the <em>virtually updated</em> features shifts.
+      Gradient descent never moves features directly, yet the Gram matrix carries a record of where they were being pushed.</p>
+    <details><summary>Show the math</summary><div class="math">
+      With \(W^+ = W - \gamma\nabla_W L\) and virtual update \(h^+ = h - \gamma \nabla_h L\),
+      \[ (W^+)^\top W^+ - W^\top W \;=\; h^+ (h^+)^\top - h h^\top + O(\gamma^2). \]
+      Over a mini-batch, the per-sample shifts add up. Over \(\tau\) steps this gives
+      \(W_t^\top W_t - W_{t-\tau}^\top W_{t-\tau} \approx \tilde h_t \tilde h_t^\top - \tilde h_{t-\tau}\tilde h_{t-\tau}^\top\), with \(\tilde h_t\) the virtual trajectory from the animation.
+      The same holds for convolutional layers (Appendix C.1).
+    </div></details>
+  </div>
+
+  <p>
+    You can check this on the toy problem above. We take the first-layer weights of the Swiss-roll network and compare their actual Gram shift with the
+    covariance shift of the virtual inputs, at the true learning rate and with no rescaling:
+  </p>
+</section>
+
+<div class="wrap">
+<figure>
+  <div class="panel">
+    <div class="fig-head">
+      <div class="legend">
+        <span><span class="sw" style="border-color:var(--w)"></span>Gram shift \(W_t^\top W_t - W_0^\top W_0\)</span>
+        <span><span class="ring" style="border-color:var(--f)"></span>Virtual covariance shift \(\tilde X_t^\top \tilde X_t - X^\top X\)</span>
+      </div>
+      <div class="seg" role="group" aria-label="Dataset" id="t1-seg">
+        <button data-ds="swissroll" aria-pressed="true">Swiss roll</button>
+        <button data-ds="circles" aria-pressed="false">Two circles</button>
+      </div>
+    </div>
+    <div class="three" id="t1-charts"></div>
+  </div>
+  <figcaption>
+    <b>Theorem 1 on the toy data.</b> Each panel is one entry of the 2×2 first-layer Gram matrix over training.
+    The weight-side line and the feature-side circles coincide.
+    On CIFAR networks the virtual covariance shift tracks the real Gram update with correlation <b>ρ = 0.98</b>, compared with 0.71 for the Average Gradient Outer Product (Appendix B.5).
+  </figcaption>
+</figure>
+</div>
+
+<section class="wrap" style="padding-top:0">
+  <p>
+    <b>Does the Gram matrix carry the learning signal?</b> If it does, we should be able to discard every part of the gradient that leaves
+    \(W^\top W\) unchanged and lose little. We do exactly that. We project out the Gram-preserving component and train with only the
+    Gram-changing part, the <em>whitened gradient</em>.
+  </p>
+</section>
+
+<div class="wide">
+<figure>
+  <div class="panel">
+    <div class="fig-head">
+      <div class="legend">
+        <span><span class="sw" style="border-color:var(--w)"></span>Whitened update (Gram-changing part only)</span>
+        <span><span class="sw dash" style="border-color:var(--muted)"></span>Standard gradient descent</span>
+        <span><span class="box" style="background:color-mix(in srgb, var(--w) 18%, transparent)"></span>±1 std over 5 runs</span>
+      </div>
+    </div>
+    <div class="four" id="wh-charts"></div>
+  </div>
+  <figcaption>
+    <b>Keeping only the part of the gradient that changes \(W^\top W\) is enough.</b> Test accuracy of 3-layer MLPs over 20 epochs.
+    The whitened update matches or beats standard GD on MNIST, SVHN, and CIFAR-10, reaching GD's best accuracy within 4–5 epochs on SVHN and CIFAR-10,
+    and stays close on CIFAR-100. Each panel has its own y-axis. CNN and ResNet results are in Appendix B.4.
+  </figcaption>
+</figure>
+</div>
+
+<section class="wrap" style="padding-top:0">
+  <h3>Do real features follow the virtual ones?</h3>
+  <p>
+    The virtual update is hypothetical. In real training the weights change, and the features move only as a consequence.
+    If the two disagreed, a layer would be learning to expect inputs that the previous layer never produces.
+    Two propositions show that they agree.
+  </p>
+</section>
+
+<div class="wide">
+<div class="two" style="margin:18px 0 8px">
+  <div class="panel">
+    <div class="fig-head" style="margin-bottom:4px">
+      <div>
+        <div class="panel-title">Proposition 1 · train one layer</div>
+        <div class="panel-sub">Per-unit change of a 16-unit tanh layer after one GD step</div>
+      </div>
+      <button class="ctrl" id="p1-new">↻ New network</button>
+    </div>
+    <div class="legend" style="margin-bottom:4px">
+      <span><span class="box" style="background:transparent;border:1.5px solid var(--f)"></span>virtual \(h^+ - h\)</span>
+      <span><span class="box" style="background:var(--w)"></span>actual \(\sigma(W^+h_{\text{prev}}) - \sigma(Wh_{\text{prev}})\)</span>
+    </div>
+    <div class="chart" id="p1-chart"></div>
+    <div class="readout" id="p1-readout"></div>
+    <p class="small" style="margin:10px 0 0">
+      <b>Same sign, never larger.</b> Each unit's actual change points the same way as its virtual change and stays inside it.
+      In fact, the actual change is the virtual one scaled by roughly \(\sigma'(z)^2 \le 1\).
+    </p>
+  </div>
+  <div class="panel">
+    <div class="fig-head" style="margin-bottom:4px">
+      <div>
+        <div class="panel-title">Proposition 2 · train all layers</div>
+        <div class="panel-sub">Illustration: actual velocity = PSD matrix × virtual direction</div>
+      </div>
+    </div>
+    <div class="legend" style="margin-bottom:4px">
+      <span><span class="sw" style="border-color:var(--f)"></span>virtual \(-\nabla_{h_l} L\)</span>
+      <span><span class="sw" style="border-color:var(--w)"></span>actual \(\dot h_l = -M_l \nabla_{h_l} L\)</span>
+    </div>
+    <svg id="p2-svg" viewBox="0 0 320 250" style="width:100%;max-width:400px;margin:0 auto;display:block" role="img" aria-label="Animated arrows showing the actual feature velocity always within 90 degrees of the virtual update"></svg>
+    <div class="readout" id="p2-readout"></div>
+    <p class="small" style="margin:10px 0 0">
+      <b>Never against it.</b> When every layer trains together under gradient flow, the real feature velocity is the virtual update
+      reshaped by a positive semi-definite matrix \(M_l\), so it always stays within 90° of the virtual direction.
+    </p>
+  </div>
+</div>
+<figure style="margin-top:18px">
+  <div class="panel">
+    <div class="fig-head" style="margin-bottom:6px">
+      <div>
+        <div class="panel-title">Proposition 2, measured on a real network</div>
+        <div class="panel-sub" id="p2m-sub"></div>
+      </div>
+      <div class="legend">
+        <span><span class="box" style="background:var(--w)"></span>samples per 5° bin</span>
+        <span><span class="box" style="background:color-mix(in srgb, var(--pos) 14%, transparent)"></span>&gt; 90°: would move against the virtual update</span>
+      </div>
+    </div>
+    <div class="four" id="p2m-charts"></div>
+  </div>
+  <figcaption>
+    <b>Every measured update agrees with its virtual direction.</b> For each input, all layers of a bias-free 4-layer GELU MLP take one small gradient step on that input's loss.
+    We then measure the angle between the actual change of each hidden state \(h_l\) and the virtual update \(-\nabla_{h_l}L\),
+    for 200 inputs at each of 5 points during training on the Swiss roll.
+    Not one of the angles reaches 90°.
+  </figcaption>
+</figure>
+</div>
+
+<section class="wrap" style="padding-top:8px">
+  <details><summary>Show the math for Propositions 1 &amp; 2</summary><div class="math">
+    <p><b>Prop. 1.</b> If \(\sigma\) is \(L\)-Lipschitz, \(\|h_{l-1}\|_2 = 1\), and only \(W_{l-1}\) takes one GD step on that sample, then element-wise
+    \(|\sigma(W^+_{l-1}h_{l-1}) - \sigma(W_{l-1}h_{l-1})| \le L^2\, |h_l^+ - h_l|\). If \(\sigma\) is monotone, the signs agree as well.</p>
+    <p style="margin:0"><b>Prop. 2.</b> Under gradient flow on all layers,
+    \[ \frac{dh_l}{dt} = -M_l\,\nabla_{h_l} L, \qquad M_l = \sum_{l'=1}^{l} \|h_{l'-1}\|_2^2\, J_{l\leftarrow l'} J_{l\leftarrow l'}^\top \succeq 0, \]
+    with \(J_{l\leftarrow l'} = \partial h_l/\partial z_{l'}\). Hence \(\langle \tfrac{dh_l}{dt}, -\nabla_{h_l}L\rangle \ge 0\).</p>
+  </div></details>
+</section>
+
+<hr class="sep">
+
+<!-- ============================================================ 3. Pillar B -->
+<section class="wrap" id="pillar-b">
+  <span class="pillar-tag"><i style="background:var(--f)"></i>Pillar B · Thinking in first order</span>
+  <h2>Small errors that cancel in bulk</h2>
+  <p>
+    To get from <em>how</em> features move to <em>where</em> they end up, we need to compare a network's behavior at different data points.
+    The tool we use is the simplest one available: a first-order Taylor expansion between pairs of training points,
+  </p>
+  \[ f(x_i) \;\approx\; f(x_j) + (x_i - x_j)^\top \nabla f(x_j). \]
+  <p>
+    For a deep network this is a bold move, because for any single pair the error can be large.
+    But the quantities we analyze are <b>sums over all pairs</b> of training points, and in that sum the errors behave very differently.
+  </p>
+
+  <div class="result">
+    <span class="tag">Proposition 5</span>
+    <p class="claim">Summed over all pairs, the first-order errors cancel exactly.</p>
+    <p>Suppose \(f\) is positively homogeneous (for example, a bias-free ReLU network) and both the inputs and the outputs are centered.
+      Then the \(N^2\) pairwise Taylor errors add up to zero, however large each one is.</p>
+    <details><summary>Show the math</summary><div class="math">
+      With \(\bar x = 0\), \(\sum_i f(x_i) = 0\), and \(x^\top \nabla f(x) = m f(x)\) (Euler's theorem for \(m\)-homogeneous \(f\)):
+      \[ \sum_{i,j}\Big[f(x_i) - f(x_j) - (x_i - x_j)^\top \nabla f(x_j)\Big]
+      = \underbrace{0}_{\text{pairs cancel}} - \underbrace{N \bar x^\top\!\textstyle\sum_j \nabla f(x_j)}_{=0\ \text{(centered)}} + N\textstyle\sum_j x_j^\top \nabla f(x_j)
+      = mN \textstyle\sum_j f(x_j) = 0. \]
+    </div></details>
+  </div>
+</section>
+
+<div class="wide">
+<figure>
+  <div class="panel">
+    <div class="fig-head">
+      <div>
+        <div class="panel-title">All 784 pairwise Taylor errors of a bias-free ReLU network on 28 points</div>
+        <div class="panel-sub">Left: error for each pair \((i, j)\). Right: running total as the pairs are added in random order.</div>
+      </div>
+      <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+        <div class="seg" role="group" aria-label="Data" id="p5-seg">
+          <button data-mode="centered" aria-pressed="true">Centered data</button>
+          <button data-mode="shifted" aria-pressed="false">Shifted data</button>
+        </div>
+        <button class="ctrl" id="p5-replay">↻ Replay</button>
+      </div>
+    </div>
+    <div class="p5">
+      <div>
+        <div class="stage"><canvas id="p5-heat" aria-label="Heatmap of pairwise first-order Taylor errors"></canvas></div>
+        <div class="legend" style="margin-top:8px;justify-content:center">
+          <span>under</span>
+          <span class="colorbar" id="p5-cbar"></span>
+          <span>over</span>
+        </div>
+      </div>
+      <div>
+        <div class="chart" id="p5-walk"></div>
+        <div class="p5-sum">
+          <div><div class="v" id="p5-total">0</div><div class="k">Σ errors (running total)</div></div>
+          <div><div class="v" id="p5-abs">0</div><div class="k">Σ |errors| (how big they are individually)</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <figcaption>
+    <b>Individually wrong, collectively exact.</b> Each cell is one pairwise first-order error: red means the expansion undershoots, blue means it overshoots.
+    With centered data the running total wanders far from zero and then returns to <b>exactly 0</b>.
+    Switch to <em>shifted data</em>, which breaks the centering assumption, and the total no longer returns.
+  </figcaption>
+</figure>
+</div>
+
+<section class="wrap" style="padding-top:0">
+  <p>
+    The idea in one line: summed over pairs, the \(f(x_i) - f(x_j)\) terms cancel, centering removes the \(x_i\) terms,
+    and homogeneity turns what remains into \(m\sum_j f(x_j) = 0\).
+    The proposition assumes exact homogeneity, but in practice the cancellation survives much more. For GELU networks, which are not homogeneous,
+    the aggregate error stays below \(10^{-6}\) at every layer.
+  </p>
+  <p class="muted">
+    This is a deliberate trade-off. Exact analyses track precise trajectories but need narrow assumptions about the architecture or data.
+    We give up exact trajectories in exchange for <b>leading-order dynamics under minimal assumptions</b>,
+    and that trade is what makes the <em>sequential linearization</em> below visible. Proposition 5 is a partial justification; we discuss the limits in Appendix A.2.
+  </p>
+</section>
+
+<hr class="sep">
+
+<!-- ============================================================ 4. Target Linearity -->
+<section class="wrap" id="tl">
+  <h2>Where do features go? Toward the target, linearly.</h2>
+  <p>
+    We measure the destination with <b>Target Linearity (TL)</b>: the R² of a linear regression from the features \(H\) to the target \(Y\).
+    TL = 1 means the target is exactly a linear function of the features, which is what the final linear layer needs.
+    TL itself is awkward to analyze, so we use a surrogate in which the Gram matrix appears again:
+  </p>
+  \[ S \;=\; Y^\top H^\top \htmlClass{wx}{W^\top W}\, H\, Y, \qquad \text{TL} \;\ge\; 1 - \frac{C}{S}\quad(\text{Theorem 2}). \]
+  <p>Growing \(S\) pushes TL up. Applying the two pillars to \(S\) yields two dynamics: one over training time and one over depth.</p>
+
+  <div class="result">
+    <span class="tag">Theorem 3 · over training time</span>
+    <p class="claim">Feature learning is a moving-target problem.</p>
+    <p>The surrogate grows by \(2\gamma\,(f^\top y)(y^\top K g)\) per step. This is positive once predictions correlate with labels and same-class features cluster together.
+      The network \(f_t\) chases the best linear predictor of its current features, \(f_{\text{OLS},t}\).
+      At the same time, the feature updates move \(f_{\text{OLS},t}\) itself toward \(y\).</p>
+    <details><summary>Show the math</summary><div class="math">
+      For 1-homogeneous \(f\), with \(G_{\text{id}} = H^\top W^\top W H\), \(K_{ij} = h_i^\top h_j\), \(g = -\nabla_f L\):
+      \[ S(G^+_{\text{id}}) - S(G_{\text{id}}) \approx 2\gamma\, (f^\top y)\,(y^\top K g). \]
+      With \(f_{\text{OLS}} = H^\top (HH^\top)^{-1}Hy\), one has \(\|y - f_{\text{OLS}}\|_K = 0\): \(y\) and \(f_{\text{OLS}}\) coincide in the \(K\)-norm.
+      The proof uses the Feature Learning Equation (Pillar A) and first-order homogeneity expansions (Pillar B).
+    </div></details>
+  </div>
+</section>
+
+
+<section class="wrap" style="padding-top:0">
+  <div class="result">
+    <span class="tag">Theorem 4 · over depth</span>
+    <p class="claim">Deep networks linearize sequentially.</p>
+    <p>For a well-trained network, the surrogate at layer \(l\) is lower-bounded by the inverse of how nonlinear the remaining subnetwork \(f_l\) still has to be.
+      That remaining nonlinearity shrinks with depth, so each layer passes a more linear problem to the next.
+      This explains why linear probes work better on deeper layers.</p>
+    <details><summary>Show the math</summary><div class="math">
+      Assume the network interpolates, \(\|W_l H_l\|_F^2 \ge C_0\), and the Neural Feature Ansatz \(W_l^\top W_l \approx \tfrac{C_l}{N}\sum_i \nabla_{h_{l,i}} f_l \nabla_{h_{l,i}} f_l^\top\). Then
+      \[ S(G^l_{\text{id}}) \gtrsim C_0\|Y\|_2^2\,\Phi_l^{-1}\ \ (m > 1,\ \textstyle\sum_i y_i = 0), \qquad S(G^l_{\text{id}}) \gtrsim C_0\|Y\|_2^4\,\Psi_l^{-1}\ \ (m = 1,\ f_l \text{ piecewise linear}), \]
+      where \(\Phi_l^{-1}, \Psi_l^{-1}\) increase monotonically in \(l\). \(\Phi_l\) is governed by the homogeneity gap \(\propto m^{L-l}\), and \(\Psi_l\) by the number of linear regions of \(f_l\).
+      Each step uses a first-order homogeneity expansion (Pillar B).
+    </div></details>
+  </div>
+</section>
+
+<div class="wide">
+<figure>
+  <div class="panel">
+    <div class="fig-head">
+      <div class="legend" id="tl-legend"></div>
+      <div class="seg" role="group" aria-label="Dataset" id="tl-seg">
+        <button data-ds="cifar10" aria-pressed="true">CIFAR-10</button>
+        <button data-ds="cifar100" aria-pressed="false">CIFAR-100</button>
+      </div>
+    </div>
+    <div class="two">
+      <div>
+        <div class="panel-title">Surrogate \(S\) (log scale)</div>
+        <div class="chart" id="tl-sur"></div>
+      </div>
+      <div>
+        <div class="panel-title">Target Linearity (R²)</div>
+        <div class="chart" id="tl-tl"></div>
+      </div>
+    </div>
+  </div>
+  <figcaption>
+    <b>Both theorems on CIFAR.</b> A 4-layer GELU MLP trained with SGD for 100 epochs. Over training, both the surrogate and TL grow at every layer (Theorem 3).
+    Across depth, later layers end up more target-linear (Theorem 4). The surrogate grows roughly exponentially while TL grows roughly logarithmically, consistent with the \(1 - C/S\) bound.
+  </figcaption>
+</figure>
+</div>
+
+<hr class="sep">
+
+<!-- ============================================================ 5. phenomena -->
+<section class="wrap" id="phenomena" style="max-width:1040px">
+  <div style="max-width:760px;margin:0 auto">
+    <h2>One lens, several phenomena</h2>
+    <p>TL applies to any task with a target, and its dynamics run through the Gram matrix. Two well-known observations follow as special cases.</p>
+  </div>
+  <div class="cards2">
+    <div class="card">
+      <h3>Neural Collapse is linearization taken to the limit</h3>
+      <svg class="ncviz" id="nc-svg" viewBox="0 0 280 170" role="img" aria-label="Animation of class features collapsing to a simplex"></svg>
+      <p class="small" style="margin:0">
+        Under NC1 (features collapse to their class means) and NC2 (the means form a simplex), the surrogate reaches its <b>maximum</b> under a norm constraint.
+        The maximum is unique: \(G_{\text{id}} \propto YY^\top\). We obtain this without the usual unconstrained-feature model. <span class="muted">(Proposition 3)</span>
+      </p>
+    </div>
+    <div class="card">
+      <h3>Linear interpolation in generative models</h3>
+      <img class="vae" src="static/img/vae_interpolation_compact.png" alt="VAE latent interpolations from digit 2 to 8 at three beta values; lower beta gives higher target linearity and cleaner transitions">
+      <p class="small" style="margin:0">
+        If the latent codes have high TL with respect to the inputs, a decoder can interpolate linearly in latent space.
+        Its interpolation error is bounded by the linear-regression reconstruction error. Lower \(\beta\) gives higher TL and cleaner 2→8 transitions. <span class="muted">(Proposition 4)</span>
+      </p>
+    </div>
+  </div>
+  <p class="muted small" style="max-width:760px;margin:22px auto 0">
+    More in the paper: TL across layers of pre-trained and fine-tuned BERT, TL under random labels and grokking,
+    CNN/ResNet whitening, and Adam.
+  </p>
+</section>
+
+<hr class="sep">
+
+<section class="wrap" id="bibtex">
+  <h2>Citation</h2>
+  <div class="bibwrap">
+    <button class="ctrl" id="bib-copy">Copy</button>
+<pre class="bib" id="bib-text">@article{cha2026weight,
+  title={The Weight Gram Matrix Captures Sequential Feature Linearization in Deep Networks},
+  author={Cha, Taehun and Beaglehole, Daniel and Radhakrishnan, Adityanarayanan and Lee, Donghun},
+  journal={arXiv preprint arXiv:2605.06258},
+  year={2026}
+}</pre>
+  </div>
+</section>
+
+<footer class="wrap">
+  Code: <a href="https://github.com/cth127/GramLin">github.com/cth127/GramLin</a> · Paper: <a href="https://arxiv.org/abs/2605.06258">arXiv:2605.06258</a>
+</footer>
+
+<script>
+(function () {
+"use strict";
+const DATA = window.PAGE_DATA;
+const STILL = /[?&]still\b/.test(location.search); // debugging aid: render every final state
+const reduceMotion = STILL || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = (v, d = 2) => (Math.abs(v) < 1e-12 ? 0 : v).toFixed(d);
+const sup = { "-": "⁻", 0: "⁰", 1: "¹", 2: "²", 3: "³", 4: "⁴", 5: "⁵", 6: "⁶", 7: "⁷", 8: "⁸", 9: "⁹" };
+const pow10 = (k) => "10" + String(k).split("").map((c) => sup[c]).join("");
+function onVisible(el, fn) {
+  const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); fn(); } }, { threshold: 0.35 });
+  io.observe(el);
+}
+function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function gauss(rng) { let u = 0, v = 0; while (u === 0) u = rng(); v = rng(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+
+/* ------------------------------------------------------------ tiny line-chart helper */
+function niceTicks(lo, hi, n) {
+  const span = hi - lo || 1;
+  let step = Math.pow(10, Math.floor(Math.log10(span / n)));
+  const err = span / n / step;
+  if (err >= 7.5) step *= 10; else if (err >= 3.5) step *= 5; else if (err >= 1.5) step *= 2;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toFixed(12));
+  return out;
+}
+function lineChart(el, o) {
+  el.innerHTML = "";
+  const W = Math.max(200, el.clientWidth), H = o.height || 200;
+  const m = Object.assign({ l: 44, r: 12, t: 10, b: o.xLabel ? 34 : 20 }, o.margin || {});
+  const xs = o.x, n = xs.length;
+  const ty = o.yLog ? (v) => Math.log10(v) : (v) => v;
+  let lo = Infinity, hi = -Infinity;
+  if (o.yDomain) [lo, hi] = o.yDomain;
+  else {
+    for (const s of o.series) {
+      for (const v of s.values) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+      if (s.band) { for (const v of s.band.lo) lo = Math.min(lo, v); for (const v of s.band.hi) hi = Math.max(hi, v); }
+    }
+    if (o.yLog) { lo = Math.pow(10, Math.floor(Math.log10(lo))); hi = Math.pow(10, Math.ceil(Math.log10(hi))); }
+    else { const pad = (hi - lo) * 0.08 || 1; lo -= pad; hi += pad; if (o.yZero) lo = Math.min(lo, 0); }
+  }
+  const X = (i) => m.l + ((xs[i] - xs[0]) / (xs[n - 1] - xs[0])) * (W - m.l - m.r);
+  const Y = (v) => H - m.b - ((ty(v) - ty(lo)) / (ty(hi) - ty(lo))) * (H - m.t - m.b);
+  const ns = "http://www.w3.org/2000/svg";
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="${o.label || "line chart"}">`;
+  // y grid + ticks
+  let yt;
+  if (o.yLog) { yt = []; const a = Math.round(Math.log10(lo)), b = Math.round(Math.log10(hi)); const st = Math.max(1, Math.ceil((b - a) / 5)); for (let k = a; k <= b; k += st) yt.push(Math.pow(10, k)); }
+  else yt = o.yTicks || niceTicks(lo, hi, o.nyTicks || 4);
+  for (const v of yt) {
+    const y = Y(v);
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="var(--grid)" stroke-width="1"/>`;
+    const lab = o.yLog ? pow10(Math.round(Math.log10(v))) : (o.yFmt ? o.yFmt(v) : v);
+    s += `<text class="tick" x="${m.l - 6}" y="${y + 3.5}" text-anchor="end">${lab}</text>`;
+  }
+  if (o.zeroLine && lo < 0 && hi > 0) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)" stroke-width="1"/>`;
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--axis)" stroke-width="1"/>`;
+  const xt = o.xTicks || niceTicks(xs[0], xs[n - 1], o.nxTicks || 4);
+  for (const v of xt) {
+    const x = m.l + ((v - xs[0]) / (xs[n - 1] - xs[0])) * (W - m.l - m.r);
+    s += `<text class="tick" x="${x}" y="${H - m.b + 14}" text-anchor="middle">${v}</text>`;
+  }
+  if (o.xLabel) s += `<text class="axis-label" x="${(m.l + W - m.r) / 2}" y="${H - 4}" text-anchor="middle">${o.xLabel}</text>`;
+  if (o.yLabel) s += `<text class="axis-label" x="${m.l}" y="${m.t - 2}" text-anchor="start">${o.yLabel}</text>`;
+  // bands
+  for (const se of o.series) if (se.band) {
+    let d = "";
+    for (let i = 0; i < n; i++) d += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(se.band.hi[i]).toFixed(1);
+    for (let i = n - 1; i >= 0; i--) d += "L" + X(i).toFixed(1) + "," + Y(se.band.lo[i]).toFixed(1);
+    s += `<path d="${d}Z" fill="${se.color}" opacity="${se.bandOpacity || 0.16}" stroke="none"/>`;
+  }
+  // lines
+  for (const se of o.series) if (!se.hideLine) {
+    let d = "";
+    for (let i = 0; i < n; i++) d += (i ? "L" : "M") + X(i).toFixed(1) + "," + Y(se.values[i]).toFixed(1);
+    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="${se.width || 2}" stroke-linejoin="round" stroke-linecap="round" ${se.dash ? `stroke-dasharray="${se.dash}"` : ""}/>`;
+  }
+  // markers
+  for (const se of o.series) if (se.markers) {
+    for (let i = 0; i < n; i += se.markers.every) s += `<circle cx="${X(i)}" cy="${Y(se.values[i])}" r="4" fill="var(--surface)" stroke="${se.color}" stroke-width="2"/>`;
+  }
+  s += `<g class="hover" style="display:none"><line class="hl" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="3 3"/></g>`;
+  s += `<g class="cursor" style="display:none"><line class="cl" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink-2)" stroke-width="1"/></g>`;
+  s += `<rect class="hit" x="${m.l}" y="0" width="${W - m.l - m.r}" height="${H}" fill="transparent"/>`;
+  s += `</svg>`;
+  el.insertAdjacentHTML("beforeend", s);
+  const svg = el.querySelector("svg");
+  const hover = svg.querySelector(".hover"), hl = svg.querySelector(".hl");
+  const cur = svg.querySelector(".cursor"), cl = svg.querySelector(".cl");
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; el.appendChild(tip);
+  function dotsAt(g, i) {
+    g.querySelectorAll("circle").forEach((c) => c.remove());
+    for (const se of o.series) {
+      if (se.noDot) continue;
+      const c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", X(i)); c.setAttribute("cy", Y(se.values[i])); c.setAttribute("r", 4);
+      c.setAttribute("fill", se.color); c.setAttribute("stroke", "var(--surface)"); c.setAttribute("stroke-width", 2);
+      g.appendChild(c);
+    }
+  }
+  if (o.tooltip) {
+    const hit = svg.querySelector(".hit");
+    const move = (ev) => {
+      const r = svg.getBoundingClientRect();
+      const px = ((ev.clientX - r.left) / r.width) * W;
+      let i = Math.round(((px - m.l) / (W - m.l - m.r)) * (n - 1));
+      i = Math.max(0, Math.min(n - 1, i));
+      hover.style.display = ""; hl.setAttribute("x1", X(i)); hl.setAttribute("x2", X(i)); dotsAt(hover, i);
+      tip.innerHTML = o.tooltip(i); tip.hidden = false;
+      const tw = tip.offsetWidth, sx = (X(i) / W) * r.width;
+      tip.style.left = (sx + 14 + tw > r.width ? sx - 14 - tw : sx + 14) + "px";
+      tip.style.top = Math.max(0, ((ev.clientY - r.top) - 20)) + "px";
+    };
+    hit.addEventListener("pointermove", move);
+    hit.addEventListener("pointerdown", move);
+    hit.addEventListener("pointerleave", () => { hover.style.display = "none"; tip.hidden = true; });
+  }
+  return {
+    setCursor(t) {
+      const i = Math.max(0, Math.min(n - 1, Math.round(t)));
+      cur.style.display = ""; cl.setAttribute("x1", X(i)); cl.setAttribute("x2", X(i)); dotsAt(cur, i);
+    },
+  };
+}
+const tipRow = (color, name, val) => `<div class="r"><i style="background:${color}"></i>${name}<b>${val}</b></div>`;
+
+/* ------------------------------------------------------------ viridis */
+const VIR = ["#440154", "#472c7a", "#3b518b", "#2c718e", "#21908d", "#27ad81", "#5cc863", "#aadc32", "#fde725"].map((h) => [1, 3, 5].map((k) => parseInt(h.substr(k, 2), 16)));
+function viridis(t) {
+  t = Math.max(0, Math.min(1, t)) * (VIR.length - 1);
+  const i = Math.min(VIR.length - 2, Math.floor(t)), a = t - i, p = VIR[i], q = VIR[i + 1];
+  return `rgb(${Math.round(p[0] + (q[0] - p[0]) * a)},${Math.round(p[1] + (q[1] - p[1]) * a)},${Math.round(p[2] + (q[2] - p[2]) * a)})`;
+}
+const isDark = () => window.matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light" || document.documentElement.dataset.theme === "dark";
+
+/* ============================================================ 1. virtual-update player */
+const P = { ds: "swissroll", t: 0, playing: false, showOrig: true, hold: 0, colors: null, charts: {} };
+const canvas = document.getElementById("vu-canvas");
+const ctx = canvas.getContext("2d");
+const slider = document.getElementById("vu-slider");
+const playBtn = document.getElementById("vu-play");
+const playIcon = document.getElementById("vu-play-icon");
+const VIEW = [-60, 1060];
+const vuT = () => DATA[P.ds].frames.length - 1; // last epoch of the current dataset
+
+function vuColors() {
+  const D = DATA[P.ds];
+  if (D.labelKind === "binary") {
+    const c0 = css("--w"), c1 = css("--f");
+    return D.y.map((v) => (v > 0.5 ? c1 : c0));
+  }
+  const lo = isDark() ? 0.18 : 0.0;
+  return D.y.map((v) => viridis(lo + (1 - lo) * v));
+}
+function vuLegend() {
+  const D = DATA[P.ds];
+  const el = document.getElementById("vu-legend");
+  const orig = `<span><span class="dot" style="background:var(--muted);opacity:.5"></span>original \\(X\\)</span>`;
+  if (D.labelKind === "binary") {
+    el.innerHTML = orig + `<span><span class="dot" style="background:var(--w)"></span>outer ring</span><span><span class="dot" style="background:var(--f)"></span>inner cluster</span>`;
+  } else {
+    const lo = isDark() ? 0.18 : 0;
+    const stops = Array.from({ length: 9 }, (_, k) => viridis(lo + (1 - lo) * k / 8)).join(",");
+    el.innerHTML = orig + `<span>target \\(y\\): start<span class="colorbar" style="background:linear-gradient(90deg,${stops})"></span>end of spiral</span>`;
+  }
+  if (window.renderMathInElement) renderMathInElement(el, KATEX_OPTS);
+}
+function vuResize() {
+  const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(r.width * dpr); canvas.height = Math.round(r.width * dpr);
+  vuDraw();
+}
+function vuDraw() {
+  const D = DATA[P.ds];
+  const S = canvas.width, dpr = window.devicePixelRatio || 1;
+  const sx = (q) => ((q - VIEW[0]) / (VIEW[1] - VIEW[0])) * S;
+  const sy = (q) => S - ((q - VIEW[0]) / (VIEW[1] - VIEW[0])) * S;
+  ctx.clearRect(0, 0, S, S);
+  const T = vuT(), t0 = Math.min(T, Math.floor(P.t)), t1 = Math.min(T, t0 + 1), a = P.t - t0;
+  const F0 = D.frames[t0], F1 = D.frames[t1], N = D.y.length;
+  const r = Math.max(1.6, S / 260);
+  if (P.showOrig) {
+    ctx.fillStyle = css("--orig-pt");
+    const O = D.frames[0];
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) { const x = sx(O[2 * i]), y = sy(O[2 * i + 1]); ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, 6.283); }
+    ctx.fill();
+  }
+  for (let i = 0; i < N; i++) {
+    const x = sx(F0[2 * i] + (F1[2 * i] - F0[2 * i]) * a), y = sy(F0[2 * i + 1] + (F1[2 * i + 1] - F0[2 * i + 1]) * a);
+    ctx.fillStyle = P.colors[i];
+    ctx.beginPath(); ctx.arc(x, y, r * 1.15, 0, 6.283); ctx.fill();
+  }
+  const ti = Math.min(T, Math.round(P.t));
+  document.getElementById("vu-badge").textContent = `epoch ${ti} / ${T}`;
+  document.getElementById("vu-tl").textContent = fmt(D.tl[ti], 2);
+  slider.value = ti;
+  P.charts.tl && P.charts.tl.setCursor(ti);
+  P.charts.loss && P.charts.loss.setCursor(Math.max(0, ti - 1));
+}
+function vuCharts() {
+  const D = DATA[P.ds];
+  const xs = D.tl.map((_, i) => i);
+  P.charts.tl = lineChart(document.getElementById("vu-tl-chart"), {
+    x: xs, height: 120, yDomain: [0, 1], yTicks: [0, 0.5, 1], margin: { l: 30 },
+    series: [{ values: D.tl, color: "var(--f)" }], label: "Target linearity of virtual inputs over epochs",
+    tooltip: (i) => `<div class="t">epoch ${i}</div>${tipRow("var(--f)", "TL of X̃", fmt(D.tl[i], 3))}`,
+  });
+  const lx = D.loss.map((_, i) => i + 1);
+  P.charts.loss = lineChart(document.getElementById("vu-loss-chart"), {
+    x: lx, height: 100, margin: { l: 30 }, nyTicks: 2, xLabel: "epoch", yFmt: (v) => v.toFixed(2),
+    series: [{ values: D.loss, color: "var(--ink-2)", width: 1.75 }], label: "Training loss over epochs",
+    tooltip: (i) => `<div class="t">epoch ${i + 1}</div>${tipRow("var(--ink-2)", "loss", D.loss[i].toFixed(4))}`,
+  });
+}
+function vuSetDataset(ds) {
+  P.ds = ds; P.colors = vuColors(); vuLegend(); vuCharts();
+  slider.max = vuT(); P.t = Math.min(P.t, vuT());
+  document.querySelectorAll('.player .seg button').forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ds === ds)));
+  vuDraw();
+}
+function setPlaying(on) {
+  P.playing = on;
+  playBtn.setAttribute("aria-label", on ? "Pause" : "Play");
+  playIcon.innerHTML = on ? '<path d="M3 1.5h3v11H3zM8 1.5h3v11H8z"/>' : '<path d="M3 1.5v11l9-5.5z"/>';
+  if (on) { if (P.t >= vuT()) P.t = 0; last = performance.now(); requestAnimationFrame(tick); }
+}
+let last = 0;
+function tick(now) {
+  if (!P.playing) return;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const T = vuT();
+  if (P.t >= T) {
+    P.hold += dt;
+    if (P.hold > 1.6) { P.hold = 0; P.t = 0; }
+  } else P.t = Math.min(T, P.t + dt * (T / 5)); // one pass takes ~5 s
+  vuDraw();
+  requestAnimationFrame(tick);
+}
+playBtn.addEventListener("click", () => setPlaying(!P.playing));
+slider.addEventListener("input", () => { setPlaying(false); P.t = +slider.value; vuDraw(); });
+document.querySelectorAll(".player .seg button").forEach((b) => b.addEventListener("click", () => { vuSetDataset(b.dataset.ds); }));
+document.getElementById("vu-orig").addEventListener("change", (e) => { P.showOrig = e.target.checked; vuDraw(); });
+
+/* ============================================================ Theorem 1 chart */
+let t1ds = "swissroll";
+function drawT1() {
+  const D = DATA[t1ds];
+  const host = document.getElementById("t1-charts");
+  host.innerHTML = "";
+  const names = ["entry (1,1)", "entry (1,2)", "entry (2,2)"];
+  const xs = D.gramShift.map((_, i) => i);
+  names.forEach((nm, k) => {
+    const box = document.createElement("div");
+    box.innerHTML = `<div class="panel-title">${nm}</div><div class="chart"></div>`;
+    host.appendChild(box);
+    const g = D.gramShift.map((r) => r[k]), v = D.vcs.map((r) => r[k]);
+    const sc = Math.max(...g.map(Math.abs), ...v.map(Math.abs)) || 1;
+    const e = Math.floor(Math.log10(sc));
+    const f = Math.pow(10, -e);
+    lineChart(box.querySelector(".chart"), {
+      x: xs, height: 170, zeroLine: true, yZero: true, xLabel: "epoch",
+      yLabel: `× ${pow10(e)}`, margin: { l: 38, t: 18 },
+      yFmt: (y) => +(y * f).toFixed(2),
+      label: `Gram shift versus virtual covariance shift, ${nm}`,
+      series: [
+        { values: g, color: "var(--w)", width: 2 },
+        { values: v, color: "var(--f)", hideLine: true, markers: { every: 10 } },
+      ],
+      tooltip: (i) => `<div class="t">epoch ${i}</div>${tipRow("var(--w)", "Gram shift", g[i].toPrecision(3))}${tipRow("var(--f)", "virtual cov. shift", v[i].toPrecision(3))}`,
+    });
+  });
+  document.querySelectorAll("#t1-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ds === t1ds)));
+}
+document.querySelectorAll("#t1-seg button").forEach((b) => b.addEventListener("click", () => { t1ds = b.dataset.ds; drawT1(); }));
+
+/* ============================================================ whitening (Fig. 2) */
+function drawWhitening() {
+  const host = document.getElementById("wh-charts");
+  host.innerHTML = "";
+  const names = { mnist: "MNIST", svhn: "SVHN", cifar10: "CIFAR-10", cifar100: "CIFAR-100" };
+  for (const k of Object.keys(names)) {
+    const d = DATA.whitening[k];
+    const box = document.createElement("div");
+    box.innerHTML = `<div class="panel-title">${names[k]}</div><div class="chart"></div>`;
+    host.appendChild(box);
+    const xs = d.orig.mean.map((_, i) => i + 1);
+    const band = (s) => ({ lo: s.mean.map((m, i) => m - s.std[i]), hi: s.mean.map((m, i) => m + s.std[i]) });
+    lineChart(box.querySelector(".chart"), {
+      x: xs, height: 180, xLabel: "epoch", xTicks: [1, 5, 10, 15, 20], margin: { l: 40 }, nyTicks: 4,
+      yFmt: (v) => (v * 100).toFixed(0) + "%",
+      label: `Test accuracy on ${names[k]}, whitened versus standard gradient descent`,
+      series: [
+        { values: d.orig.mean, color: "var(--muted)", dash: "5 4", band: band(d.orig), bandOpacity: 0.14 },
+        { values: d.whiten.mean, color: "var(--w)", band: band(d.whiten), bandOpacity: 0.18 },
+      ],
+      tooltip: (i) => `<div class="t">${names[k]} · epoch ${i + 1}</div>${tipRow("var(--w)", "whitened", (d.whiten.mean[i] * 100).toFixed(1) + "%")}${tipRow("var(--muted)", "standard GD", (d.orig.mean[i] * 100).toFixed(1) + "%")}`,
+    });
+  }
+}
+
+/* ============================================================ Proposition 1 */
+let p1seed = 7;
+function drawP1() {
+  const rng = mulberry32(p1seed);
+  const din = 8, dh = 16, dd = 8;
+  let hp = Array.from({ length: din }, () => gauss(rng));
+  const nh = Math.hypot(...hp); hp = hp.map((v) => v / nh); // ||h_{l-1}|| = 1
+  const Wm = Array.from({ length: dh }, () => Array.from({ length: din }, () => gauss(rng) * 1.1));
+  const U = Array.from({ length: dd }, () => Array.from({ length: dh }, () => gauss(rng) / Math.sqrt(dh) * 1.5));
+  const v = Array.from({ length: dd }, () => gauss(rng));
+  const target = 2 * gauss(rng);
+  const z = Wm.map((row) => row.reduce((s, w, j) => s + w * hp[j], 0));
+  const h = z.map(Math.tanh);
+  const u = U.map((row) => row.reduce((s, w, j) => s + w * h[j], 0));
+  const fo = u.reduce((s, ui, k) => s + v[k] * Math.tanh(ui), 0);
+  const r = fo - target;
+  const gh = h.map((_, j) => r * U.reduce((s, row, k) => s + row[j] * v[k] * (1 - Math.tanh(u[k]) ** 2), 0));
+  const gamma = 0.55 / Math.max(...gh.map(Math.abs));
+  const virt = gh.map((g) => -gamma * g);
+  const gz = gh.map((g, j) => g * (1 - h[j] ** 2));
+  const Wp = Wm.map((row, i) => row.map((w, j) => w - gamma * gz[i] * hp[j]));
+  const act = Wp.map((row, i) => Math.tanh(row.reduce((s, w, j) => s + w * hp[j], 0)) - h[i]);
+
+  const el = document.getElementById("p1-chart");
+  const W = Math.max(240, el.clientWidth), H = 190, m = { l: 34, r: 6, t: 8, b: 22 };
+  const M = Math.max(...virt.map(Math.abs)) * 1.12;
+  const Y = (val) => m.t + ((M - val) / (2 * M)) * (H - m.t - m.b);
+  const bw = (W - m.l - m.r) / dh;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Paired bars: virtual and actual per-unit feature change">`;
+  for (const tv of niceTicks(-M, M, 4)) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(tv)}" y2="${Y(tv)}" stroke="var(--grid)"/><text class="tick" x="${m.l - 6}" y="${Y(tv) + 3.5}" text-anchor="end">${tv}</text>`;
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)"/>`;
+  let agree = 0, inside = 0;
+  for (let j = 0; j < dh; j++) {
+    const x = m.l + j * bw;
+    const vy = Math.min(Y(0), Y(virt[j])), vh = Math.abs(Y(virt[j]) - Y(0));
+    const ay = Math.min(Y(0), Y(act[j])), ah = Math.abs(Y(act[j]) - Y(0));
+    s += `<rect x="${x + bw * 0.12}" y="${vy}" width="${bw * 0.76}" height="${Math.max(vh, 0.5)}" rx="2" fill="color-mix(in srgb, var(--f) 10%, transparent)" stroke="var(--f)" stroke-width="1.5"><title>unit ${j + 1}: virtual ${virt[j].toFixed(3)}, actual ${act[j].toFixed(3)}</title></rect>`;
+    s += `<rect x="${x + bw * 0.3}" y="${ay}" width="${bw * 0.4}" height="${Math.max(ah, 0.5)}" rx="1.5" fill="var(--w)" pointer-events="none"/>`;
+    if (Math.sign(virt[j]) === Math.sign(act[j])) agree++;
+    if (Math.abs(act[j]) <= Math.abs(virt[j]) + 1e-12) inside++;
+  }
+  s += `<text class="tick" x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle">hidden unit</text></svg>`;
+  el.innerHTML = s;
+  document.getElementById("p1-readout").innerHTML = `Same sign: <b>${agree}/${dh}</b> units · |actual| ≤ |virtual|: <b>${inside}/${dh}</b> units`;
+}
+document.getElementById("p1-new").addEventListener("click", () => { p1seed = (p1seed * 9301 + 49297) % 233280; drawP1(); });
+
+/* ============================================================ Proposition 2 (animated illustration) */
+function startP2() {
+  const svg = document.getElementById("p2-svg");
+  const cx = 160, cy = 150, L = 92;
+  const vdir = [Math.cos(-1.05), Math.sin(-1.05)]; // virtual direction (screen coords: y down)
+  const nrm = [-vdir[1], vdir[0]];
+  const R = 400;
+  // half-plane {u : <u, v> >= 0}
+  const hp = [
+    [cx + nrm[0] * R, cy + nrm[1] * R], [cx + nrm[0] * R + vdir[0] * R, cy + nrm[1] * R + vdir[1] * R],
+    [cx - nrm[0] * R + vdir[0] * R, cy - nrm[1] * R + vdir[1] * R], [cx - nrm[0] * R, cy - nrm[1] * R],
+  ].map((p) => p.join(",")).join(" ");
+  svg.innerHTML = `
+    <defs>
+      <clipPath id="p2clip"><rect x="0" y="0" width="320" height="250" rx="8"/></clipPath>
+      <marker id="p2af" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--f)"/></marker>
+      <marker id="p2aw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--w)"/></marker>
+    </defs>
+    <g clip-path="url(#p2clip)">
+      <rect x="0" y="0" width="320" height="250" fill="var(--surface-2)"/>
+      <polygon points="${hp}" fill="color-mix(in srgb, var(--w) 9%, var(--surface))"/>
+      <line x1="${cx - nrm[0] * R}" y1="${cy - nrm[1] * R}" x2="${cx + nrm[0] * R}" y2="${cy + nrm[1] * R}" stroke="var(--axis)" stroke-dasharray="4 4"/>
+      <ellipse id="p2ell" cx="${cx}" cy="${cy}" rx="40" ry="20" fill="none" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3"/>
+      <path id="p2arc" fill="none" stroke="var(--ink-2)" stroke-width="1"/>
+      <line x1="${cx}" y1="${cy}" x2="${cx + vdir[0] * L}" y2="${cy + vdir[1] * L}" stroke="var(--f)" stroke-width="3" marker-end="url(#p2af)" stroke-linecap="round"/>
+      <line id="p2act" x1="${cx}" y1="${cy}" stroke="var(--w)" stroke-width="3" marker-end="url(#p2aw)" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="3.5" fill="var(--ink)"/>
+      <text x="308" y="22" class="axis-label" text-anchor="end">shaded: within 90° of virtual</text>
+      <text x="12" y="240" class="tick">dashed line = 90° boundary</text>
+      <text id="p2ang" class="tick" fill="var(--ink-2)"></text>
+    </g>`;
+  const act = svg.querySelector("#p2act"), ell = svg.querySelector("#p2ell"), arc = svg.querySelector("#p2arc"), ang = svg.querySelector("#p2ang");
+  const readout = document.getElementById("p2-readout");
+  readout.innerHTML = `Angle now <b class="now">0°</b> · largest so far <b class="max">0°</b> (always &lt; 90°). Dotted ellipse: the PSD preconditioner \\(M_l\\).`;
+  if (window.renderMathInElement) renderMathInElement(readout, KATEX_OPTS);
+  const nowEl = readout.querySelector(".now"), maxEl = readout.querySelector(".max");
+  let maxAng = 0;
+  function frame(time) {
+    const s = time / 1000;
+    const th = s * 0.55, l1 = 1.0, l2 = 0.04 + 0.5 * (1 + Math.sin(s * 0.9)) * 0.5; // PSD eigenvalues
+    const c = Math.cos(th), sn = Math.sin(th);
+    const M = [[l1 * c * c + l2 * sn * sn, (l1 - l2) * c * sn], [(l1 - l2) * c * sn, l1 * sn * sn + l2 * c * c]];
+    let a = [M[0][0] * vdir[0] + M[0][1] * vdir[1], M[1][0] * vdir[0] + M[1][1] * vdir[1]];
+    const al = Math.hypot(a[0], a[1]);
+    const len = L * (0.55 + 0.45 * al);
+    a = [a[0] / al, a[1] / al];
+    act.setAttribute("x2", cx + a[0] * len); act.setAttribute("y2", cy + a[1] * len);
+    ell.setAttribute("rx", 52 * l1); ell.setAttribute("ry", 52 * l2 + 1);
+    ell.setAttribute("transform", `rotate(${(th * 180) / Math.PI} ${cx} ${cy})`);
+    const a1 = Math.atan2(vdir[1], vdir[0]), a2 = Math.atan2(a[1], a[0]);
+    let d = a2 - a1; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+    const deg = Math.abs(d * 180 / Math.PI);
+    maxAng = Math.max(maxAng, deg);
+    const rr = 30;
+    arc.setAttribute("d", `M${cx + rr * Math.cos(a1)},${cy + rr * Math.sin(a1)} A${rr},${rr} 0 0 ${d > 0 ? 1 : 0} ${cx + rr * Math.cos(a2)},${cy + rr * Math.sin(a2)}`);
+    const mid = a1 + d / 2;
+    ang.setAttribute("x", cx + 46 * Math.cos(mid) - 10); ang.setAttribute("y", cy + 46 * Math.sin(mid) + 4);
+    ang.textContent = deg.toFixed(0) + "°";
+    nowEl.textContent = deg.toFixed(0) + "°"; maxEl.textContent = maxAng.toFixed(0) + "°";
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+  frame(reduceMotion ? 2600 : performance.now());
+}
+
+/* ============================================================ Proposition 2, measured */
+function drawP2Measured() {
+  const D = DATA.prop2, L = D.hist.length, bw = D.binWidth;
+  const su = D.setup;
+  document.getElementById("p2m-sub").textContent =
+    `${su.layers} hidden layers × ${su.width} units · ${su.samples} inputs at epochs ${su.checkpoints.join(", ")} · step size ${su.eta}`;
+  const host = document.getElementById("p2m-charts");
+  host.innerHTML = "";
+  const ymax = Math.max(...D.hist.flat());
+  for (let l = 0; l < L; l++) {
+    const box = document.createElement("div");
+    box.innerHTML = `<div class="panel-title">Layer ${l + 1}</div><div class="chart"></div>
+      <div class="readout">max <b>${D.max[l].toFixed(0)}°</b> · median <b>${D.median[l].toFixed(0)}°</b> · n = ${D.n[l]}</div>`;
+    host.appendChild(box);
+    const el = box.querySelector(".chart");
+    const W = Math.max(180, el.clientWidth), H = 140, m = { l: 34, r: 8, t: 8, b: 30 };
+    const X = (deg) => m.l + (deg / 180) * (W - m.l - m.r);
+    const Y = (c) => H - m.b - (c / ymax) * (H - m.t - m.b);
+    let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Histogram of angles for layer ${l + 1}">`;
+    s += `<rect x="${X(90)}" y="${m.t}" width="${X(180) - X(90)}" height="${H - m.b - m.t}" fill="color-mix(in srgb, var(--pos) 14%, transparent)"/>`;
+    for (const tv of niceTicks(0, ymax, 3)) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(tv)}" y2="${Y(tv)}" stroke="var(--grid)"/><text class="tick" x="${m.l - 5}" y="${Y(tv) + 3.5}" text-anchor="end">${tv}</text>`;
+    D.hist[l].forEach((c, k) => {
+      if (!c) return;
+      const x0 = X(k * bw), x1 = X((k + 1) * bw);
+      s += `<rect x="${x0 + 0.75}" y="${Y(c)}" width="${Math.max(1, x1 - x0 - 1.5)}" height="${H - m.b - Y(c)}" rx="1.5" fill="var(--w)"><title>${k * bw}–${(k + 1) * bw}°: ${c} inputs</title></rect>`;
+    });
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="var(--axis)"/>`;
+    s += `<line x1="${X(90)}" x2="${X(90)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink-2)" stroke-dasharray="4 3"/>`;
+    for (const d of [0, 45, 90, 135, 180]) s += `<text class="tick" x="${X(d)}" y="${H - m.b + 13}" text-anchor="middle">${d}°</text>`;
+    s += `<text class="axis-label" x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle">angle(actual, virtual)</text></svg>`;
+    el.innerHTML = s;
+  }
+}
+
+/* ============================================================ Proposition 5 */
+const P5 = { mode: "centered", start: 0, dur: 4200, data: {} };
+function buildP5(mode) {
+  const rng = mulberry32(11);
+  const N = 28, hidden = 24;
+  let X = [];
+  for (let i = 0; i < N; i++) {
+    const th = 0.15 * Math.PI + rng() * 1.25 * Math.PI, rr = 1 + 0.25 * gauss(rng);
+    X.push([rr * Math.cos(th), 0.6 * rr * Math.sin(th)]);
+  }
+  const mx = X.reduce((s, p) => s + p[0], 0) / N, my = X.reduce((s, p) => s + p[1], 0) / N;
+  X = X.map((p) => [p[0] - mx, p[1] - my]);
+  const Wm = Array.from({ length: hidden }, () => [gauss(rng), gauss(rng)]);
+  const relu = (v) => Math.max(0, v);
+  const feats = (x) => Wm.map((w) => relu(w[0] * x[0] + w[1] * x[1]));
+  // choose a so that sum_i f(x_i) = 0 on the centered data (f stays 1-homogeneous)
+  let a = Array.from({ length: hidden }, () => gauss(rng));
+  const sv = Array(hidden).fill(0);
+  X.forEach((x) => feats(x).forEach((v, k) => (sv[k] += v)));
+  const proj = a.reduce((s, v, k) => s + v * sv[k], 0) / sv.reduce((s, v) => s + v * v, 0);
+  a = a.map((v, k) => v - proj * sv[k]);
+  if (mode === "shifted") X = X.map((p) => [p[0] + 0.7, p[1] + 0.45]);
+  const f = (x) => feats(x).reduce((s, v, k) => s + a[k] * v, 0);
+  const grad = (x) => {
+    const g = [0, 0];
+    Wm.forEach((w, k) => { if (w[0] * x[0] + w[1] * x[1] > 0) { g[0] += a[k] * w[0]; g[1] += a[k] * w[1]; } });
+    return g;
+  };
+  const fx = X.map(f), gx = X.map(grad);
+  const E = new Float64Array(N * N);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+    E[i * N + j] = fx[i] - fx[j] - ((X[i][0] - X[j][0]) * gx[j][0] + (X[i][1] - X[j][1]) * gx[j][1]);
+  const order = Array.from({ length: N * N }, (_, k) => k);
+  const r2 = mulberry32(5);
+  for (let k = order.length - 1; k > 0; k--) { const q = Math.floor(r2() * (k + 1)); [order[k], order[q]] = [order[q], order[k]]; }
+  const C = new Float64Array(N * N + 1);
+  for (let k = 0; k < order.length; k++) C[k + 1] = C[k] + E[order[k]];
+  const maxAbs = Math.max(...E.map(Math.abs));
+  const absSum = E.reduce((s, v) => s + Math.abs(v), 0);
+  return { N, E, order, C, maxAbs, absSum, rank: (() => { const r = new Int32Array(N * N); order.forEach((c, k) => (r[c] = k)); return r; })() };
+}
+function hexToRgb(h) { h = h.replace("#", ""); return [0, 2, 4].map((k) => parseInt(h.substr(k, 2), 16)); }
+function divColor(t, neg, mid, pos) { // t in [-1, 1]
+  const [p, q] = t < 0 ? [mid, neg] : [mid, pos];
+  const a = Math.min(1, Math.abs(t)) ** 0.7;
+  return `rgb(${p.map((v, i) => Math.round(v + (q[i] - v) * a)).join(",")})`;
+}
+let p5walk = null;
+function drawP5(progress) {
+  const D = P5.data[P5.mode];
+  const N = D.N, k = Math.round(progress * N * N);
+  const cv = document.getElementById("p5-heat"), c2 = cv.getContext("2d");
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  if (cv.width !== Math.round(r.width * dpr)) { cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.width * dpr); }
+  const S = cv.width, cs = S / N;
+  const neg = hexToRgb(css("--neg")), mid = hexToRgb(css("--mid")), pos = hexToRgb(css("--pos"));
+  c2.fillStyle = css("--surface-2"); c2.fillRect(0, 0, S, S);
+  const gap = Math.max(1, dpr * 0.75);
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const idx = i * N + j;
+    if (D.rank[idx] >= k) continue;
+    c2.fillStyle = divColor(D.E[idx] / D.maxAbs, neg, mid, pos);
+    c2.fillRect(j * cs + gap / 2, i * cs + gap / 2, cs - gap, cs - gap);
+  }
+  // walk chart cursor: redraw path up to k
+  const svg = document.querySelector("#p5-walk svg");
+  if (svg) {
+    const path = svg.querySelector(".walk"), dot = svg.querySelector(".walkdot");
+    const { X, Y } = p5walk;
+    let d = "M" + X(0) + "," + Y(0);
+    const stepPx = Math.max(1, Math.floor(D.C.length / 400));
+    for (let q = stepPx; q <= k; q += stepPx) d += "L" + X(q).toFixed(1) + "," + Y(D.C[q]).toFixed(1);
+    d += "L" + X(k).toFixed(1) + "," + Y(D.C[k]).toFixed(1);
+    path.setAttribute("d", d);
+    dot.setAttribute("cx", X(k)); dot.setAttribute("cy", Y(D.C[k]));
+  }
+  const tot = D.C[k];
+  document.getElementById("p5-total").textContent = (Math.abs(tot) < 5e-10 ? 0 : tot).toFixed(progress >= 1 ? 6 : 2);
+  let ab = 0; for (let q = 0; q < k; q++) ab += Math.abs(D.E[D.order[q]]);
+  document.getElementById("p5-abs").textContent = ab.toFixed(1);
+}
+function buildP5Walk() {
+  const D = P5.data[P5.mode];
+  const el = document.getElementById("p5-walk");
+  const W = Math.max(260, el.clientWidth), H = 230, m = { l: 44, r: 12, t: 12, b: 32 };
+  const M = Math.max(...D.C.map(Math.abs)) * 1.12;
+  const X = (q) => m.l + (q / (D.C.length - 1)) * (W - m.l - m.r);
+  const Y = (v) => m.t + ((M - v) / (2 * M)) * (H - m.t - m.b);
+  p5walk = { X, Y };
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Running total of pairwise errors">`;
+  for (const tv of niceTicks(-M, M, 4)) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(tv)}" y2="${Y(tv)}" stroke="var(--grid)"/><text class="tick" x="${m.l - 6}" y="${Y(tv) + 3.5}" text-anchor="end">${tv}</text>`;
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-2)" stroke-width="1.25"/>`;
+  s += `<text class="tick" x="${W - m.r}" y="${Y(0) - 6}" text-anchor="end">0</text>`;
+  const n = D.C.length - 1;
+  for (const q of [0, 200, 400, 600, n]) s += `<text class="tick" x="${X(q)}" y="${H - m.b + 14}" text-anchor="middle">${q}</text>`;
+  s += `<text class="axis-label" x="${(m.l + W - m.r) / 2}" y="${H - 3}" text-anchor="middle">pairs added</text>`;
+  s += `<text class="axis-label" x="${m.l}" y="${m.t - 2}">running Σ of errors</text>`;
+  s += `<path class="walk" fill="none" stroke="var(--f)" stroke-width="2" stroke-linejoin="round"/>`;
+  s += `<circle class="walkdot" r="5" fill="var(--f)" stroke="var(--surface)" stroke-width="2"/>`;
+  s += `</svg>`;
+  el.innerHTML = s;
+  const cb = document.getElementById("p5-cbar");
+  const neg = hexToRgb(css("--neg")), mid = hexToRgb(css("--mid")), pos = hexToRgb(css("--pos"));
+  cb.style.background = `linear-gradient(90deg,${[-1, -0.5, -0.15, 0, 0.15, 0.5, 1].map((t) => divColor(t, neg, mid, pos)).join(",")})`;
+}
+function playP5() {
+  buildP5Walk();
+  if (reduceMotion) { drawP5(1); return; }
+  P5.start = performance.now();
+  const id = (P5.runId = (P5.runId || 0) + 1);
+  const step = (now) => {
+    if (id !== P5.runId) return;
+    const p = Math.min(1, (now - P5.start) / P5.dur);
+    drawP5(1 - Math.pow(1 - p, 1.6));
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+document.getElementById("p5-replay").addEventListener("click", playP5);
+document.querySelectorAll("#p5-seg button").forEach((b) => b.addEventListener("click", () => {
+  P5.mode = b.dataset.mode;
+  document.querySelectorAll("#p5-seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  playP5();
+}));
+// heatmap hover
+(function () {
+  const cv = document.getElementById("p5-heat");
+  const tip = document.createElement("div"); tip.className = "tip"; tip.hidden = true; cv.parentElement.appendChild(tip);
+  cv.addEventListener("pointermove", (ev) => {
+    const D = P5.data[P5.mode], r = cv.getBoundingClientRect();
+    const j = Math.floor(((ev.clientX - r.left) / r.width) * D.N), i = Math.floor(((ev.clientY - r.top) / r.height) * D.N);
+    if (i < 0 || j < 0 || i >= D.N || j >= D.N) return;
+    const e = D.E[i * D.N + j];
+    tip.innerHTML = `<div class="t">expand around x<sub>${j + 1}</sub>, evaluate at x<sub>${i + 1}</sub></div><div class="r">error<b>${e >= 0 ? "+" : ""}${e.toFixed(3)}</b></div>`;
+    tip.hidden = false;
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    tip.style.left = (x + 14 + tip.offsetWidth > r.width ? x - 14 - tip.offsetWidth : x + 14) + "px";
+    tip.style.top = Math.max(0, y - 30) + "px";
+  });
+  cv.addEventListener("pointerleave", () => (tip.hidden = true));
+})();
+
+/* ============================================================ Target Linearity (Fig. 4) */
+let tlds = "cifar10";
+function drawTL() {
+  const D = DATA.targetLinearity[tlds];
+  const cols = ["var(--l1)", "var(--l2)", "var(--l3)", "var(--l4)"];
+  document.getElementById("tl-legend").innerHTML = cols.map((c, i) => `<span><span class="sw" style="border-color:${c};border-top-width:2.5px"></span>Layer ${i + 1}</span>`).join("");
+  const xs = D.tl[0].map((_, i) => i);
+  const tip = (arr, f) => (i) => `<div class="t">epoch ${i}</div>` + arr.map((s, l) => tipRow(cols[l], `Layer ${l + 1}`, f(s[i]))).reverse().join("");
+  lineChart(document.getElementById("tl-sur"), {
+    x: xs, height: 240, yLog: true, xLabel: "epoch", margin: { l: 40 },
+    series: D.surrogate.map((v, l) => ({ values: v, color: cols[l] })), label: "Surrogate per layer over training, log scale",
+    tooltip: tip(D.surrogate, (v) => v.toExponential(2)),
+  });
+  lineChart(document.getElementById("tl-tl"), {
+    x: xs, height: 240, yDomain: [0, tlds === "cifar10" ? 0.6 : 0.2], xLabel: "epoch", margin: { l: 40 }, yFmt: (v) => v.toFixed(2),
+    series: D.tl.map((v, l) => ({ values: v, color: cols[l] })), label: "Target linearity per layer over training",
+    tooltip: (i) => tip(D.tl, (v) => v.toFixed(3))(i) + `<div class="r" style="margin-top:4px;color:var(--ink-2)">train / test acc<b>${(D.trainAcc[i] * 100).toFixed(0)}% / ${(D.testAcc[i] * 100).toFixed(0)}%</b></div>`,
+  });
+  document.querySelectorAll("#tl-seg button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.ds === tlds)));
+}
+document.querySelectorAll("#tl-seg button").forEach((b) => b.addEventListener("click", () => { tlds = b.dataset.ds; drawTL(); }));
+
+/* ============================================================ Neural collapse mini-animation */
+function startNC() {
+  const svg = document.getElementById("nc-svg");
+  const rng = mulberry32(3);
+  const cx = 140, cy = 92, R = 62;
+  const cls = [0, 1, 2].map((c) => { const a = -Math.PI / 2 + (c * 2 * Math.PI) / 3; return [cx + R * Math.cos(a), cy + R * Math.sin(a)]; });
+  const colors = ["var(--w)", "var(--f)", "var(--ink-2)"];
+  const pts = [];
+  for (let c = 0; c < 3; c++) for (let k = 0; k < 14; k++) pts.push({ c, x0: cx + gauss(rng) * 46, y0: cy + gauss(rng) * 34 });
+  let s = `<polygon class="tri" points="${cls.map((p) => p.join(",")).join(" ")}" fill="none" stroke="var(--axis)" stroke-dasharray="3 3"/>`;
+  pts.forEach((p, i) => (s += `<circle data-i="${i}" r="3.6" fill="${colors[p.c]}" opacity=".85"/>`));
+  s += `<text x="140" y="166" text-anchor="middle" class="tick" id="nc-lbl"></text>`;
+  svg.innerHTML = s;
+  const circles = svg.querySelectorAll("circle"), lbl = svg.querySelector("#nc-lbl"), tri = svg.querySelector(".tri");
+  let t0 = performance.now();
+  function frame(now) {
+    let u = ((now - t0) / 1000) / 3.2;
+    if (u > 1.6) { t0 = now; u = 0; }
+    const e = Math.min(1, u); const k = e * e * (3 - 2 * e);
+    circles.forEach((c, i) => {
+      const p = pts[i], m = cls[p.c];
+      const jx = (p.x0 - cx) * 0.06, jy = (p.y0 - cy) * 0.06;
+      c.setAttribute("cx", p.x0 + (m[0] + jx - p.x0) * k);
+      c.setAttribute("cy", p.y0 + (m[1] + jy - p.y0) * k);
+    });
+    tri.setAttribute("opacity", k);
+    lbl.textContent = k > 0.98 ? "collapsed: class means form a simplex" : "training …";
+    if (!reduceMotion) requestAnimationFrame(frame);
+  }
+  if (reduceMotion) t0 = performance.now() - 3200;
+  frame(performance.now());
+}
+
+/* ============================================================ bibtex copy */
+document.getElementById("bib-copy").addEventListener("click", async (e) => {
+  try { await navigator.clipboard.writeText(document.getElementById("bib-text").textContent); e.target.textContent = "Copied"; }
+  catch (_) { e.target.textContent = "Select & copy"; }
+  setTimeout(() => (e.target.textContent = "Copy"), 1600);
+});
+
+/* ============================================================ boot */
+const KATEX_OPTS = {
+  delimiters: [{ left: "\\[", right: "\\]", display: true }, { left: "\\(", right: "\\)", display: false }],
+  trust: (c) => c.command === "\\htmlClass", strict: false, throwOnError: false,
+};
+window.KATEX_OPTS = KATEX_OPTS;
+function boot() {
+  P5.data.centered = buildP5("centered");
+  P5.data.shifted = buildP5("shifted");
+  vuSetDataset("swissroll");
+  vuResize();
+  drawT1(); drawWhitening(); drawP1(); drawP2Measured(); drawTL();
+  startP2(); startNC();
+  buildP5Walk(); drawP5(0);
+  onVisible(document.getElementById("p5-heat"), playP5);
+  if (!reduceMotion) onVisible(canvas, () => setPlaying(true));
+  else { P.t = vuT(); vuDraw(); }
+  let rt;
+  window.addEventListener("resize", () => {
+    clearTimeout(rt);
+    rt = setTimeout(() => { vuResize(); vuCharts(); vuDraw(); drawT1(); drawWhitening(); drawP1(); drawP2Measured(); drawTL(); buildP5Walk(); drawP5(1); }, 150);
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    P.colors = vuColors(); vuLegend(); vuDraw(); buildP5Walk(); drawP5(1);
+  });
+}
+function renderMath() {
+  if (window.renderMathInElement) renderMathInElement(document.body, KATEX_OPTS);
+}
+window.addEventListener("DOMContentLoaded", () => {
+  boot();
+  // KaTeX scripts are deferred; they run before DOMContentLoaded fires.
+  renderMath();
+});
+})();
+</script>
+</body>
+</html>
